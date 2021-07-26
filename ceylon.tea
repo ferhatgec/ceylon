@@ -1,0 +1,155 @@
+// MIT License
+//
+// Copyright (c) 2021 Ferhat Geçdoğan All Rights Reserved.
+// Distributed under the terms of the MIT License.
+//
+// ceylon - really small & simple interpreter in Gretea.
+// ~just for fun~ & ~unusable~
+// 
+// put <expr>
+// put <data>
+// put <val>
+// val <name> = <expr>
+// val <name> = <data>
+
+import tea.green.fmt
+import tea.green.string
+import tea.green.type
+import tea.green.char
+
+import tea.green.expr
+import tea.green.log
+import tea.green.color
+
+import tea.black.sstream
+import tea.black.vector
+
+`set nl = "\n"
+
+enum CurrentTok = int8 {
+    Put,
+    Val,
+    Undef
+}
+
+compile default for string {
+    "put \"Hello world\\n\""
+        + string("put \"\x1b[0;33mTest\x1b[0m\"\n")
+        + string("val x = 9 + 2 - 8\n")
+        + string("put $x")
+}
+
+fn main() = int {
+    var mut code: string = [[ default ]]
+
+    var mut tok: string = ""
+    var mut curr = Undef
+
+    var mut name: string = ""    
+    var mut data: string = ""
+    var mut start = false
+    var mut seq = false
+
+    var mut val_list: []string = {}
+    var mut val_data: []string = {}
+
+    var mut is_var_data = false
+    var mut is_replace_var = false
+
+    for &ch in code {
+        if curr == Val {
+            if ch == '=' {
+                is_var_data = true
+                continue
+            }
+
+            if ch != '=' && !is_var_data {
+                cpp_str#push_back(name, ch)
+            }
+
+            if ch != '\n' {
+                cpp_str#push_back(data, ch)
+            } else {
+                cpp_vector#push_back(val_list, name)
+                cpp_vector#push_back(val_data, cpp_str#to_string(expr#eval(data)))
+
+                cpp_str#erase(name)
+                cpp_str#erase(data)
+                
+                curr = Undef
+            }
+
+            continue
+        }
+
+        if start {
+            if seq {
+                if ch == '"' {
+                    cpp_str#push_back(data, ch)
+                } else if ch == 'n' {
+                    str#append(data, nl)
+                }
+
+                seq = false
+                continue
+            }
+
+            if ch == '"' && !seq {
+                start = false
+
+                if curr == Put {
+                    cpp_str#erase(tok)
+                    fmt#println(data)
+                    cpp_str#erase(data)
+                }
+
+                continue
+            } else if is_replace_var {
+                var mut i = 0
+
+                for &tok in val_list {
+                    if tok == tok {
+                        fmt#println(cpp_vector#at(val_data, i))
+                    }
+
+                    i += 1
+                }
+            }
+
+            if ch == '\\' {
+                seq = true
+
+                continue
+            }
+
+            cpp_str#push_back(data, ch)
+        }
+        
+        if (ch == '"' || ch == '$') && !seq && !start {
+            if ch == '$' { 
+                is_replace_var = true
+            }
+
+            start = true
+            continue
+        }
+
+
+        if ch == '\w' && !str#is_empty(tok) && str#is_empty(data) {
+            if tok == "put" {
+                curr = Put
+            }
+            else if tok == "val" {
+                curr = Val
+            }
+
+            cpp_str#erase(tok)
+
+            continue
+        }
+
+        if ch == '\n' { continue}
+
+        cpp_str#push_back(tok, ch)
+    }
+}
